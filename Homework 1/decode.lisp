@@ -1,0 +1,296 @@
+; *********************************************
+; *  341 Programming Languages                *
+; *  Fall 2019                                *
+; *  Author: Yakup Genc                       *
+; *********************************************
+
+;;; Ozan Şelte - 161044061
+
+;; utility functions 
+(load "include.lisp") ;; "c2i and "i2c"
+
+(defun read-as-list (filename)
+	(with-open-file (stream filename)
+		(loop :while (peek-char nil stream nil nil)
+			do (setf chrlist '())
+			do (setf word (string-upcase (read stream)))
+			collect (reverse (dolist (chr (coerce word 'list) chrlist)
+				(push (c2s chr) chrlist)
+			))
+		)
+	)
+)
+
+;; -----------------------------------------------------
+;; HELPERS
+;; *** PLACE YOUR HELPER FUNCTIONS BELOW ***
+
+(defun spell-checker-0 (word dictionary)
+	(dolist (key dictionary)
+		(when (equal word key)
+			(return-from spell-checker-0 T)
+		)
+	)
+	(return-from spell-checker-0 NIL)
+)
+
+(defun spell-checker-1 (word dictionary)
+	(setf hashmap (make-hash-table :test 'equal))
+	(dolist (key dictionary)
+		(setf (gethash key hashmap) T)
+	)
+	(return-from spell-checker-1 (gethash word hashmap))
+)
+
+(defun c2s (chr)
+	(return-from c2s (intern (string-upcase chr)))
+)
+
+(defun s2c (sym)
+	(return-from s2c (char (string-downcase sym) 0))
+)
+
+(defun s2i (sym)
+	(return-from s2i (c2i (s2c sym)))
+)
+
+(defun i2s (itgr)
+	(return-from i2s (c2s (i2c itgr)))
+)
+
+(defun permute (list)
+	(if list
+		(mapcan #'(lambda (x)
+			(mapcar #'(lambda (y) (cons x y))
+			(permute (remove x list)))
+		)
+		list)
+	'(()))
+)
+
+(defun is-per-ok (per paragraph dictionary)
+	(setf correct 0)
+	(dolist (encoded paragraph)
+		do (setf decoded '())
+		(dolist (letter encoded decoded)
+			do (push (nth (s2i letter) per)
+			decoded)
+		)
+		(setf decoded (reverse decoded))
+		(when (spell-checker-1 decoded dictionary)
+			(setf correct (+ correct 1))
+		)
+	)
+	(return-from is-per-ok correct)
+)
+
+(defun compare-letter (a b)
+	(> (nth 1 a) (nth 1 b))
+)
+
+(defun compare-cipher (a b)
+	(< (s2i (nth 2 a)) (s2i (nth 2 b)))
+)
+
+(defun count-letter (letter letter-list)
+	(dolist (curr letter-list)
+		(when (equal letter (nth 0 curr))
+			(setf (nth 1 curr) (+ 1 (nth 1 curr)))
+			(return-from count-letter letter-list)
+		)
+	)
+	(push '() letter-list)
+	(push 1 (nth 0 letter-list))
+	(push letter (nth 0 letter-list))
+	(return-from count-letter letter-list)
+)
+
+(defun count-letters (dictionary)
+	(setf counts '())
+	(dolist (word dictionary)
+		(dolist (letter word)
+			(setf counts (count-letter letter counts))
+		)
+	)
+	(setf counts (sort counts 'compare-letter))
+	(return-from count-letters counts)
+)
+
+(defun Gen-Decoder-Per (perm)
+	(setf decoder (
+		lambda (word) 
+			(setf strword (make-string-output-stream))
+			(setf per perm)
+			(setf str NIL)
+			(dolist (c word str)
+				(setf n (s2i c))
+				(write-string (string (nth n per)) strword)
+			)
+			(setf str (get-output-stream-string strword))
+	))
+	(return-from Gen-Decoder-Per decoder)
+)
+
+(defun insert-list (n pos lst)
+	(setf temp '())
+	(when (= pos 0)
+		(setf temp (append
+			(list n)
+			lst
+		))
+	)
+	(when (= pos (- (list-length lst) 0))
+		(setf temp (append
+			lst
+			(list n)
+		))
+	)
+	(when (= 0 (list-length temp))
+		(setf temp (append
+			(subseq lst 0 pos)
+			(list n)
+			(subseq lst pos)
+		))
+	)
+	(return-from insert-list temp)
+)
+
+;; -----------------------------------------------------
+;; DECODE FUNCTIONS
+
+(defun Gen-Decoder-A (paragraph dictionary alphabet)
+	(setf per-list (permute alphabet))
+	(setf per-num 0)
+	(setf correct-per '())
+	(dolist (per per-list)
+		(setf correct (is-per-ok per paragraph dictionary))
+		(when (>= correct per-num)
+			(setf per-num correct)
+			(setf correct-per per)
+		)
+		(when (= per-num (list-length paragraph))
+			(return-from Gen-Decoder-A (Gen-Decoder-Per correct-per))
+		)
+	)
+	(return-from Gen-Decoder-A (Gen-Decoder-Per correct-per))
+)
+
+(defun Gen-Decoder-B-0 (paragraph dictionary alphabet bests)
+	(setf alp alphabet)
+	(setf mosts (count-letters paragraph))
+	(setf cnt -1)
+	(dolist (most mosts)
+		(setf cnt (+ cnt 1))
+		(setf (nth cnt mosts) (append most (list (nth cnt bests))))
+		(when (nth cnt bests)
+			(setf alp (remove (nth 0 most) alp))
+		)
+	)
+	(setf mosts (sort mosts 'compare-cipher))
+	(setf per-list (permute alp))
+	(setf per-num 0)
+	(setf correct-per '())
+	(dolist (per per-list)
+		(dolist (most mosts)
+			(setf ltr (nth 0 most))
+			(setf pos (s2i (nth 2 most)))
+			(when (nth 2 most)
+				(setf per (insert-list ltr pos per))
+			)
+		)
+		(setf correct (is-per-ok per paragraph dictionary))
+		(when (>= correct per-num)
+			(setf per-num correct)
+			(setf correct-per per)
+		)
+		(when (= per-num (list-length paragraph))
+			(return-from Gen-Decoder-B-0 (Gen-Decoder-Per correct-per))
+		)
+	)
+	(return-from Gen-Decoder-B-0 (Gen-Decoder-Per correct-per))
+)
+
+(defun Gen-Decoder-B-1 (paragraph)
+	;you should implement this function
+	; NOT IMPLEMENTED
+)
+
+(defun Encoder (paragraph alphabet)
+	(setf cipher '())
+	(setf letters alphabet)
+	(setf rndstate (make-random-state t))
+	(dolist (a alphabet)
+		(setf idx (random (list-length letters) rndstate))
+		(setf letter (nth idx letters))
+		(setf cipher (append cipher (list letter)))
+		(setf letters (remove letter letters))
+	)
+	(setf encoded '())
+	(dolist (word paragraph)
+		(setf key '())
+		(dolist (w word)
+			(setf idx (s2i w))
+			(setf key (append key (list (nth idx cipher))))
+		)
+		(setf encoded (append encoded (list key)))
+	)
+	(return-from Encoder encoded)
+)
+
+(defun Code-Breaker (document decoder)
+	(setf plain (make-string-output-stream))
+	(dolist (key document)
+		(setf word (funcall decoder key))
+		(write-string word plain)
+		(write-string " " plain)
+	)
+	(setf plain (string-trim " " (get-output-stream-string plain)))
+)
+
+;; -----------------------------------------------------
+;; Test code...
+
+(defun test-on-test-data ()
+	(print "....................................................")
+	(print "Testing Encoder....")
+	(print "....................................................")
+	(let
+		(
+			(document (read-as-list "document1.txt"))
+			(alphabet '(A B C D E F G H I J K L M N O P Q R S T U V W X Y Z))
+		)
+		(print document)
+		(setf encoded (Encoder document alphabet))
+		(print encoded)
+	)
+	(print "....................................................")
+	(print "Testing Gen-Decoder-A....")
+	(print "....................................................")
+	(let
+		(
+			(dictionary (read-as-list "dictionary0.txt"))
+			(document (read-as-list "document0.txt"))
+			(alphabet '(A B C D E))
+		)
+		(print document)
+		(setf decoder (Gen-Decoder-A document dictionary alphabet))
+		(print (Code-Breaker document decoder))
+	)
+	(print "....................................................")
+	(print "Testing Gen-Decoder-B-0....")
+	(print "....................................................")
+	(let
+		(
+			(dictionary (read-as-list "dictionary2.txt"))
+			(document (read-as-list "document2.txt"))
+			(alphabet '(A B C D E F G))
+			(bests '(G A C B))
+		)
+		(print document)
+		(setf decoder (Gen-Decoder-B-0 document dictionary alphabet bests))
+		(print (Code-Breaker document decoder))
+	)
+)
+
+;; test code...
+(test-on-test-data)
