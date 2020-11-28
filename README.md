@@ -3,9 +3,9 @@
 
 This repository contains course homework and their solutions.
 
-| #      	| #1  	| #2  	| #3 	|
-|--------	|-----	|-----	|----	|
-| Grades 	| 75  	| 90  	| 100	|
+| #      	| #1  	| #2  	| #3 	| #4  |
+|--------	|-----	|-----	|----	|----	|
+| Grades 	| 75  	| 90  	| 100	| 100	|
 
 The course was given by Dr. Yakup Genç at Gebze Technical University for the Department of Computer Engineering in the Fall 2019.
 
